@@ -1,0 +1,86 @@
+
+Goal: Create /etc/motd with exactly 6 lines, line numbers, syntax
+highlighting, then save and verify.
+
+
+STEP 1: Open /etc/motd in vim
+-----------------------------
+$ sudo vim /etc/motd
+
+(sudo is needed because /etc/ is owned by root)
+
+
+STEP 2: Enter the 6-line content
+--------------------------------
+Press  i  to go into INSERT mode, then type:
+
+Line 1: (blank - just press Enter)
+Line 2: company name:Google
+Line 3: server name:$<hostname>
+Line 4: last updated date:9 august 2026
+Line 5: "no unauthorized entry"
+Line 6: (blank - just press Enter)
+
+Press  Esc  when done.
+
+Result should look like:
+
+(blank)
+company name:Google
+server name:$<hostname>
+last updated date:9 august 2026
+"no unauthorized entry"
+(blank)
+
+
+STEP 3: Enable line numbers
+---------------------------
+Press Esc, then type in command mode:
+
+:set number
+
+Numbers 1 to 6 appear on the left. Confirm you see 1-6.
+
+
+STEP 4: Enable syntax highlighting
+----------------------------------
+:set syntax=sh
+
+Colours appear if your terminal supports it.
+
+To make settings permanent, add these lines to ~/.vimrc:
+    set number
+    syntax on
+
+
+STEP 5: Save and quit
+---------------------
+:wq
+
+(w = write/save, q = quit)
+
+
+STEP 6: Verify line count and content
+-------------------------------------
+Go to the directory containing the file (e.g. cd /etc), then run:
+
+$ wc -l motd
+
+Expected output:
+6 motd
+
+View the file:
+
+$ cat motd
+
+
+QUICK COMMAND SUMMARY
+---------------------
+sudo vim /etc/motd     -> open file
+i                      -> insert mode
+Esc                    -> back to command mode
+:set number            -> show line numbers
+:set syntax=sh         -> syntax highlighting
+:wq                    -> save and quit
+wc -l motd             -> count lines (must be 6)
+cat motd               -> view file

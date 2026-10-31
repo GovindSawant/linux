@@ -1,0 +1,144 @@
+Docker Container Lifecycle and Image in Linux
+===============================================================
+Goal: Install the container tool, search/pull the nginx image, run
+a container named 'webserver' on port 8080, then stop, restart,
+remove the container and the image, and verify nothing is left.
+
+NOTE: In your screenshots the tool used is PODMAN (CentOS Stream 9
+ships podman, not docker). Podman commands are the same as Docker
+commands. If your lab uses real Docker, just replace "podman" with
+"docker" in every command below.
+
+
+STEP 1: Check installation and running status
+---------------------------------------------
+Install (if not installed):
+$ sudo dnf install podman -y
+
+Check it is installed:
+$ podman --version
+$ rpm -q podman
+
+(Podman has no background service, so there is nothing to start.)
+
+If you are using real Docker instead:
+$ sudo systemctl status docker
+$ sudo systemctl start docker
+
+
+STEP 2: Display the version
+---------------------------
+$ podman -v
+
+Example output: podman version 3.4.3-dev
+
+
+STEP 3: Search for the official nginx image
+-------------------------------------------
+$ podman search nginx
+
+Look for the row:
+docker.io/library/nginx   Official build of Nginx.   [OK]
+
+Optional (show only official images):
+$ podman search nginx --filter=is-official
+
+
+STEP 4: Pull the latest nginx image and verify
+----------------------------------------------
+$ podman pull docker.io/library/nginx
+
+Verify it downloaded:
+$ podman images
+
+Expected: docker.io/library/nginx   latest   <IMAGE ID>   <size>
+
+
+STEP 5: Start container 'webserver' (detached, port 80 -> 8080)
+---------------------------------------------------------------
+$ podman run -d -p 8080:80 --name webserver docker.io/library/nginx
+
+(-d = detached/background, -p 8080:80 = host port 8080 -> container
+ port 80, --name = container name)
+
+It prints a long container ID.
+
+
+STEP 6: Verify the container is running and web page works
+----------------------------------------------------------
+$ podman ps
+
+Check: STATUS "Up ...", PORTS 0.0.0.0:8080->80/tcp, NAMES webserver
+
+Test the web page:
+$ curl http://localhost:8080
+(or open http://localhost:8080 in Firefox)
+
+Expected: "Welcome to nginx!" page
+
+
+STEP 7: Stop the running container and verify it is stopped
+-----------------------------------------------------------
+$ podman stop webserver
+$ podman ps
+(empty list = nothing running)
+$ podman ps -a
+(webserver shows STATUS "Exited")
+
+
+STEP 8: Restart the container and verify it is running again
+------------------------------------------------------------
+$ podman start webserver
+$ podman ps
+
+Or restart directly:
+$ podman restart webserver
+
+IMPORTANT: Use "podman start webserver" (the existing container).
+Do NOT use "podman run" again, because that creates a NEW container
+with a random name (like frosty_leavitt in your screenshot).
+
+
+STEP 9: Stop and remove the 'webserver' container
+-------------------------------------------------
+$ podman stop webserver
+$ podman rm webserver
+
+Shortcut (force stop + remove):
+$ podman rm -f webserver
+
+
+STEP 10: Remove the nginx image
+-------------------------------
+$ podman rmi docker.io/library/nginx
+
+(The image cannot be removed while a container still uses it. If
+ you accidentally created extra containers, remove them first with
+ podman ps -a and podman rm <name>.)
+
+
+STEP 11: Verify no nginx containers or images remain
+----------------------------------------------------
+$ podman ps -a
+$ podman images
+
+Both lists should be empty (only headers shown).
+
+
+QUICK COMMAND SUMMARY
+---------------------
+sudo dnf install podman -y                          -> install
+podman --version                                    -> check install
+podman -v                                           -> version
+podman search nginx                                 -> search image
+podman pull docker.io/library/nginx                 -> download image
+podman images                                       -> list images
+podman run -d -p 8080:80 --name webserver docker.io/library/nginx
+podman ps                                           -> running containers
+curl http://localhost:8080                          -> test web page
+podman stop webserver                               -> stop
+podman ps -a                                        -> all containers
+podman start webserver                              -> start again
+podman rm -f webserver                              -> remove container
+podman rmi docker.io/library/nginx                  -> remove image
+podman ps -a ; podman images                        -> verify clean

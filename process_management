@@ -1,0 +1,179 @@
+Process and Service Management
+===============================================================
+Goal: Find top 5 CPU processes, find zombie processes, check which
+process uses port 80, reload httpd with SIGHUP, renice httpd to 10,
+and verify the nice value.
+
+
+STEP 0 (only if httpd is not running): Start httpd
+--------------------------------------------------
+$ sudo systemctl start httpd
+$ sudo systemctl status httpd
+
+
+STEP 1: Display top 5 processes sorted by CPU using ps
+------------------------------------------------------
+$ ps aux --sort=-%cpu | head -n 6
+
+(head -n 6 = 1 header line + 5 processes)
+
+
+STEP 2: Find any zombie processes
+---------------------------------
+$ top -b -n 1 | grep "zombie"
+
+Expected output (no zombies):
+Tasks: 238 total, 1 running, 237 sleeping, 0 stopped, 0 zombie
+
+Alternative using ps (zombies show state Z):
+$ ps aux | awk '$8 ~ /^Z/'
+
+
+STEP 3: Identify which process is using port 80 using ss
+--------------------------------------------------------
+$ sudo ss -tulpn | grep ':80'
+
+Output shows httpd with its PIDs listening on *:80
+
+
+STEP 4: Send SIGHUP to httpd (graceful reload, no downtime)
+-----------------------------------------------------------
+Find the PIDs:
+$ pgrep -x httpd
+
+Find the main (oldest) httpd PID:
+$ pgrep -o httpd
+
+Send SIGHUP to the main process (replace <PID> with that number):
+$ sudo kill -HUP <PID>
+
+Or by name:
+$ sudo pkill -HUP -x httpd
+
+Or the service way:
+$ sudo systemctl reload httpd
+
+NOTE: Do NOT use kill -9. That is SIGKILL, it stops httpd
+instantly and is not a graceful reload. (If you used it, start
+httpd again with: sudo systemctl start httpd)
+
+
+STEP 5: Find the httpd main PID and renice it to 10
+---------------------------------------------------
+$ pgrep -o httpd
+$ sudo renice -n 10 -p <PID>
+
+Example output:
+34463 (process ID) old priority 0, new priority 10
+
+
+STEP 6: Verify the nice value changed using ps
+----------------------------------------------
+$ ps -o ni -p <PID>
+
+Expected output:
+ NI
+ 10
+
+Or see name too:
+$ ps -o pid,ni,comm -p <PID>
+
+
+QUICK COMMAND SUMMARY
+---------------------
+ps aux --sort=-%cpu | head -n 6    -> top 5 CPU processes
+top -b -n 1 | grep "zombie"        -> zombie count
+sudo ss -tulpn | grep ':80'        -> who is using port 80
+pgrep -o httpd                     -> main httpd PID
+sudo kill -HUP <PID>               -> graceful reload
+sudo renice -n 10 -p <PID>         -> set nice value to 10
+ps -o ni -p <PID>                  -> verify nice valuePRACTICAL P-06: Process and Service Management
+===============================================================
+Goal: Find top 5 CPU processes, find zombie processes, check which
+process uses port 80, reload httpd with SIGHUP, renice httpd to 10,
+and verify the nice value.
+
+
+STEP 0 (only if httpd is not running): Start httpd
+--------------------------------------------------
+$ sudo systemctl start httpd
+$ sudo systemctl status httpd
+
+
+STEP 1: Display top 5 processes sorted by CPU using ps
+------------------------------------------------------
+$ ps aux --sort=-%cpu | head -n 6
+
+(head -n 6 = 1 header line + 5 processes)
+
+
+STEP 2: Find any zombie processes
+---------------------------------
+$ top -b -n 1 | grep "zombie"
+
+Expected output (no zombies):
+Tasks: 238 total, 1 running, 237 sleeping, 0 stopped, 0 zombie
+
+Alternative using ps (zombies show state Z):
+$ ps aux | awk '$8 ~ /^Z/'
+
+
+STEP 3: Identify which process is using port 80 using ss
+--------------------------------------------------------
+$ sudo ss -tulpn | grep ':80'
+
+Output shows httpd with its PIDs listening on *:80
+
+
+STEP 4: Send SIGHUP to httpd (graceful reload, no downtime)
+-----------------------------------------------------------
+Find the PIDs:
+$ pgrep -x httpd
+
+Find the main (oldest) httpd PID:
+$ pgrep -o httpd
+
+Send SIGHUP to the main process (replace <PID> with that number):
+$ sudo kill -HUP <PID>
+
+Or by name:
+$ sudo pkill -HUP -x httpd
+
+Or the service way:
+$ sudo systemctl reload httpd
+
+NOTE: Do NOT use kill -9. That is SIGKILL, it stops httpd
+instantly and is not a graceful reload. (If you used it, start
+httpd again with: sudo systemctl start httpd)
+
+
+STEP 5: Find the httpd main PID and renice it to 10
+---------------------------------------------------
+$ pgrep -o httpd
+$ sudo renice -n 10 -p <PID>
+
+Example output:
+34463 (process ID) old priority 0, new priority 10
+
+
+STEP 6: Verify the nice value changed using ps
+----------------------------------------------
+$ ps -o ni -p <PID>
+
+Expected output:
+ NI
+ 10
+
+Or see name too:
+$ ps -o pid,ni,comm -p <PID>
+
+
+QUICK COMMAND SUMMARY
+---------------------
+ps aux --sort=-%cpu | head -n 6    -> top 5 CPU processes
+top -b -n 1 | grep "zombie"        -> zombie count
+sudo ss -tulpn | grep ':80'        -> who is using port 80
+pgrep -o httpd                     -> main httpd PID
+sudo kill -HUP <PID>               -> graceful reload
+sudo renice -n 10 -p <PID>         -> set nice value to 10
+ps -o ni -p <PID>                  -> verify nice value

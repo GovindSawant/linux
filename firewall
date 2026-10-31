@@ -1,0 +1,145 @@
+Configure firewalld
+===============================================================
+Goal: Make sure firewalld is running, set 'public' as the default
+zone, allow HTTP and block ping on public, create a new zone
+'office', add source 192.168.10.0/24 to it, and allow HTTP, HTTPS,
+SSH and port 8443/tcp on office. All rules must be permanent.
+
+Network used: 192.168.10.0/24 (internal office network)
+Interface   : ens33 (check yours with: ip addr show)
+
+
+STEP 1: Check firewall status
+-----------------------------
+$ sudo systemctl status firewalld
+
+Expected: active (running). Press q to leave the status screen.
+
+If it is not running:
+$ sudo systemctl enable --now firewalld
+
+Alternative quick check:
+$ sudo firewall-cmd --state
+(prints: running)
+
+
+STEP 2: Set the default zone to 'public'
+----------------------------------------
+$ sudo firewall-cmd --set-default-zone=public
+$ sudo firewall-cmd --reload
+
+Verify:
+$ sudo firewall-cmd --get-default-zone
+(prints: public)
+
+
+STEP 3: On the public zone: allow HTTP, block ping
+--------------------------------------------------
+See the current public zone settings first:
+$ sudo firewall-cmd --zone=public --list-all
+
+Allow HTTP permanently:
+$ sudo firewall-cmd --zone=public --add-service=http --permanent
+
+Block ping (ICMP echo-request) permanently:
+$ sudo firewall-cmd --zone=public --add-icmp-block=echo-request --permanent
+
+Apply the changes:
+$ sudo firewall-cmd --reload
+
+Verify:
+$ sudo firewall-cmd --zone=public --list-all
+(services should include http, icmp-blocks should show echo-request)
+
+Test the ping block (from ANOTHER machine, not the server itself):
+$ ping <server-ip>
+(should get no reply)
+
+NOTE: Your screenshot used --add-icmp-block-inversion. That flips
+the ICMP rules (blocks everything except the listed types) and
+does not directly "drop echo-request" as the task says.
+Use --add-icmp-block=echo-request as shown above. If you already
+ran the inversion command, undo it with:
+$ sudo firewall-cmd --zone=public --remove-icmp-block-inversion
+
+
+STEP 4: Create a new zone 'office'
+----------------------------------
+$ sudo firewall-cmd --new-zone=office --permanent
+$ sudo firewall-cmd --reload
+
+Verify the zone exists:
+$ sudo firewall-cmd --get-zones
+(the list should include: office)
+
+
+STEP 5: Add source 192.168.10.0/24 to the 'office' zone
+-------------------------------------------------------
+$ sudo firewall-cmd --zone=office --add-source=192.168.10.0/24 --permanent
+$ sudo firewall-cmd --reload
+
+(Type "office" carefully. A typo such as "offic" gives:
+ Error: INVALID_ZONE)
+
+Verify:
+$ sudo firewall-cmd --zone=office --list-sources
+
+
+STEP 6: On 'office': allow HTTP, HTTPS, SSH and port 8443/tcp
+-------------------------------------------------------------
+$ sudo firewall-cmd --zone=office --add-service=http --permanent
+$ sudo firewall-cmd --zone=office --add-service=https --permanent
+$ sudo firewall-cmd --zone=office --add-service=ssh --permanent
+$ sudo firewall-cmd --zone=office --add-port=8443/tcp --permanent
+$ sudo firewall-cmd --reload
+
+(SSH is in the task box of your doc but not in your screenshots,
+ so I added it. The practical's list at the top of your doc says
+ only HTTP, HTTPS and 8443/tcp. Keep the SSH line to match the
+ task box, or skip it if your teacher wants only the three.)
+
+
+STEP 7: Final verification (rules survive reboot)
+-------------------------------------------------
+$ sudo firewall-cmd --zone=office --list-all
+$ sudo firewall-cmd --zone=public --list-all
+$ sudo firewall-cmd --permanent --zone=office --list-all
+
+Expected for 'office':
+  sources: 192.168.10.0/24
+  services: http https ssh
+  ports: 8443/tcp
+
+Expected for 'public':
+  services: (includes) http
+  icmp-blocks: echo-request
+
+Check the default zone is still public:
+$ sudo firewall-cmd --get-default-zone
+
+
+IMPORTANT: DO NOT run "firewall-cmd --set-default-zone=office"
+--------------------------------------------------------------
+The last line of your screenshot sets the default zone to office.
+The task says the default zone must be 'public'. Setting it to
+office would make the office rules apply to ALL traffic that is not
+matched by a source. If you already ran it, fix it with:
+$ sudo firewall-cmd --set-default-zone=public
+
+
+QUICK COMMAND SUMMARY
+---------------------
+sudo systemctl status firewalld                     -> check status
+sudo firewall-cmd --set-default-zone=public         -> default zone
+sudo firewall-cmd --zone=public --add-service=http --permanent
+sudo firewall-cmd --zone=public --add-icmp-block=echo-request --permanent
+sudo firewall-cmd --new-zone=office --permanent     -> new zone
+sudo firewall-cmd --reload                          -> apply
+sudo firewall-cmd --zone=office --add-source=192.168.10.0/24 --permanent
+sudo firewall-cmd --zone=office --add-service=http --permanent
+sudo firewall-cmd --zone=office --add-service=https --permanent
+sudo firewall-cmd --zone=office --add-service=ssh --permanent
+sudo firewall-cmd --zone=office --add-port=8443/tcp --permanent
+sudo firewall-cmd --reload
+sudo firewall-cmd --zone=office --list-all          -> verify
+sudo firewall-cmd --zone=public --list-all          -> verify

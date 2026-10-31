@@ -1,0 +1,115 @@
+Disk Partitioning and LVM configuration
+===============================================================
+Goal: Use the new 10 GB disk (sdb): create a GPT partition, make
+PV -> VG (dbvg) -> LV (dblv, 5GB), format with XFS, mount on
+/var/lib/mysql, make it permanent in /etc/fstab using UUID, verify.
+
+WARNING: Be sure /dev/sdb is the NEW empty disk before you start.
+         fdisk will erase whatever is on the disk you choose.
+
+
+STEP 1: Identify the new disk with lsblk
+----------------------------------------
+$ lsblk
+
+sdb (10G, no partitions, no mountpoint) is the new disk.
+(sda is the OS disk, do not touch it.)
+
+
+STEP 2: Create GPT partition table and one partition using fdisk
+----------------------------------------------------------------
+$ sudo fdisk /dev/sdb
+
+Inside fdisk, type these one by one:
+
+  g          -> create a new GPT partition table
+  n          -> new partition
+  1          -> partition number (press Enter for default)
+  Enter      -> first sector (default)
+  Enter      -> last sector (default = use whole disk)
+  w          -> write changes and exit
+
+(Optional: type "t" then "44" or "lvm" to set type to Linux LVM.
+ The practical works without it too.)
+
+Check the partition was created:
+$ lsblk
+(you should see sdb1 under sdb)
+
+
+STEP 3: Create PV, VG named 'dbvg', and LV named 'dblv' (5GB)
+-------------------------------------------------------------
+$ sudo pvcreate /dev/sdb1
+$ sudo vgcreate dbvg /dev/sdb1
+$ sudo lvcreate -L 5G -n dblv dbvg
+
+Display the LV:
+$ sudo lvdisplay
+(look for LV Path: /dev/dbvg/dblv, LV Size: 5.00 GiB)
+
+Shorter views:
+$ sudo pvs
+$ sudo vgs
+$ sudo lvs
+
+
+STEP 4: Format the LV with XFS file system
+------------------------------------------
+$ sudo mkfs.xfs /dev/dbvg/dblv
+
+
+STEP 5: Mount to /var/lib/mysql and add to /etc/fstab using UUID
+----------------------------------------------------------------
+Create the mount point and mount it:
+$ sudo mkdir -p /var/lib/mysql
+$ sudo mount /dev/dbvg/dblv /var/lib/mysql
+
+Get the UUID of the LV:
+$ sudo blkid /dev/mapper/dbvg-dblv
+(copy the UUID="...." value)
+
+Edit fstab:
+$ sudo nano /etc/fstab
+
+Add this line at the end (replace <UUID> with your real UUID):
+
+UUID=<UUID>  /var/lib/mysql  xfs  defaults  0 0
+
+Save in nano: Ctrl+O, Enter, then Ctrl+X
+
+Reload systemd and test the fstab entry:
+$ sudo systemctl daemon-reload
+$ sudo mount -av
+
+Expected: /var/lib/mysql : already mounted
+(no errors = fstab line is correct)
+
+
+STEP 6: Verify with lsblk -f and df -h
+--------------------------------------
+$ lsblk -f
+(shows sdb1 -> LVM2_member, dbvg-dblv -> xfs, UUID, /var/lib/mysql)
+
+$ df -h
+(shows /dev/mapper/dbvg-dblv  5.0G  ...  /var/lib/mysql)
+
+Optional (shows filesystem type too):
+$ df -Th
+
+
+QUICK COMMAND SUMMARY
+---------------------
+lsblk                              -> find new disk (sdb)
+sudo fdisk /dev/sdb                -> g, n, 1, Enter, Enter, w
+sudo pvcreate /dev/sdb1            -> create physical volume
+sudo vgcreate dbvg /dev/sdb1       -> create volume group
+sudo lvcreate -L 5G -n dblv dbvg   -> create 5GB logical volume
+sudo lvdisplay                     -> display LV
+sudo mkfs.xfs /dev/dbvg/dblv       -> format as XFS
+sudo mkdir -p /var/lib/mysql       -> create mount point
+sudo mount /dev/dbvg/dblv /var/lib/mysql  -> mount
+sudo blkid /dev/mapper/dbvg-dblv   -> get UUID
+sudo nano /etc/fstab               -> add UUID line
+sudo mount -av                     -> test fstab
+lsblk -f                           -> verify
+df -h                              -> verify

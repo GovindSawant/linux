@@ -1,0 +1,157 @@
+Scheduling and Managing Cron Jobs
+===============================================================
+Goal: Check existing cron jobs, create an every-minute job, check
+the log, add a 7:00 AM daily job and a Sunday 11:59 PM job, list
+all jobs, then remove the every-minute job and verify.
+
+CRON FORMAT (5 time fields + command):
+  minute  hour  day-of-month  month  day-of-week  command
+  0-59    0-23  1-31          1-12   0-7 (0 or 7 = Sunday)
+
+Replace "centos" with your own username everywhere below.
+
+
+STEP 0: Make the folder and the script
+--------------------------------------
+$ mkdir -p ~/cron
+$ nano ~/cron/create.sh
+
+Type this inside the script:
+
+  #!/bin/bash
+  PATH_DIR="/home/centos/cron"
+  /usr/bin/touch $PATH_DIR/morning_task
+  echo "This is crontab" >> $PATH_DIR/morning_task
+
+Save in nano: Ctrl+O, Enter, then Ctrl+X
+
+Make it executable (cron needs this):
+$ chmod +x ~/cron/create.sh
+
+Test it once by hand:
+$ ~/cron/create.sh
+$ cat ~/cron/morning_task
+
+Make sure the cron service is running:
+$ sudo systemctl status crond
+(if not running: sudo systemctl enable --now crond)
+
+
+STEP 1: Check whether the current user has any cron jobs
+--------------------------------------------------------
+$ crontab -l
+
+If none exist, it prints: no crontab for centos
+(In your screenshot the output was empty, which also means none.)
+
+
+STEP 2: Create a cron job that runs every minute
+------------------------------------------------
+$ crontab -e
+
+Press i (insert mode) in vim, then type:
+
+* * * * * /home/centos/cron/create.sh
+
+Save and exit vim: press Esc, then type  :wq  and press Enter
+(You should see: crontab: installing new crontab)
+
+Check it:
+$ crontab -l
+
+
+STEP 3: Wait a few minutes and verify the log is updated
+--------------------------------------------------------
+Wait 2-3 minutes, then:
+
+$ sudo tail -n 50 /var/log/cron
+
+Or watch it live (Ctrl+C to stop):
+$ sudo tail -f /var/log/cron
+
+You should see lines like:
+  CROND[...]: (centos) CMD (/home/centos/cron/create.sh)
+  CROND[...]: (centos) CMDEND (/home/centos/cron/create.sh)
+
+Alternative check, see the file the job writes to:
+$ cat ~/cron/morning_task
+
+
+STEP 4: Schedule a job at 7:00 AM daily that creates morning_task.txt
+---------------------------------------------------------------------
+Create the target folder first:
+$ mkdir -p ~/cron_tasks
+
+$ crontab -e
+
+Add this line:
+
+0 7 * * * /usr/bin/touch /home/centos/cron_tasks/morning_task.txt
+
+(The task asks for a file named morning_task.txt in
+ /home/<username>/cron_tasks. Your screenshot used create.sh and
+ created "morning_task" in the cron folder, which is slightly
+ different. The line above matches the task exactly. If your
+ teacher accepts create.sh, use:
+ 0 7 * * * /home/centos/cron/create.sh)
+
+
+STEP 5: Schedule a job to run every Sunday at 11:59 PM
+------------------------------------------------------
+$ crontab -e
+
+Add this line:
+
+59 23 * * 0 /home/centos/cron/create.sh
+
+(The last field 0 = Sunday. Your screenshot shows "59 23 * * *",
+ which runs EVERY day. Use "59 23 * * 0" for Sunday only.)
+
+Save and exit: Esc, then :wq
+
+
+STEP 6: List the cron jobs and verify all are present
+-----------------------------------------------------
+$ crontab -l
+
+Expected (3 jobs):
+* * * * * /home/centos/cron/create.sh
+0 7 * * * /usr/bin/touch /home/centos/cron_tasks/morning_task.txt
+59 23 * * 0 /home/centos/cron/create.sh
+
+
+STEP 7: Remove the every-minute job
+-----------------------------------
+$ crontab -e
+
+Delete the line that starts with  * * * * *
+In vim: move the cursor to that line and press  dd
+Save and exit: Esc, then :wq
+
+
+STEP 8: Verify it was deleted
+-----------------------------
+$ crontab -l
+
+The "* * * * *" line should be gone. Only the 7:00 AM job and the
+Sunday job remain.
+
+Extra check (no new entries should appear after a minute or two):
+$ sudo tail -n 10 /var/log/cron
+
+
+EXTRA COMMANDS (not needed, but useful)
+---------------------------------------
+crontab -r     -> remove ALL your cron jobs (careful!)
+crontab -l -u <user>   -> list another user's jobs (needs sudo)
+
+
+QUICK COMMAND SUMMARY
+---------------------
+crontab -l                          -> list jobs
+crontab -e                          -> edit jobs
+sudo tail -n 50 /var/log/cron       -> check cron log
+* * * * *    <command>              -> every minute
+0 7 * * *    <command>              -> 7:00 AM daily
+59 23 * * 0  <command>              -> Sunday 11:59 PM
+dd (in vim) then :wq                -> delete a line and save

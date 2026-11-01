@@ -1,0 +1,145 @@
+Configure and Manage sudo
+===============================================================
+Goal: Give a junior admin 'jradmin' limited sudo rights (restart
+httpd and read httpd logs only), let DBA 'dba1' run any command as
+user 'mysql' without a password, log all sudo usage to
+/var/log/sudo.log, then test and check the log.
+
+
+STEP 1: Create the users
+------------------------
+$ sudo useradd jradmin
+$ sudo passwd jradmin
+(type the new password twice)
+
+$ sudo useradd dba1
+$ sudo passwd dba1
+(type the new password twice)
+
+Verify:
+$ id jradmin
+$ id dba1
+
+
+STEP 2: Create the sudoers rule for jradmin
+-------------------------------------------
+Use visudo for the drop-in file (it checks the syntax for you):
+$ sudo visudo -f /etc/sudoers.d/jradmin
+
+(Your lab book used: sudo nano /etc/sudoers.d/jradmin. That also
+ works, but a typo can break sudo. visudo -f is safer.)
+
+Type these 3 lines:
+
+Cmnd_Alias HTTPD_RESTART = /usr/bin/systemctl restart httpd
+Cmnd_Alias HTTPD_LOGS = /usr/bin/tail /var/log/httpd/*
+jradmin ALL=(root) NOPASSWD: HTTPD_RESTART, HTTPD_LOGS
+
+Save and exit:
+  nano -> Ctrl+O, Enter, Ctrl+X
+  vi   -> Esc, then :wq
+
+Set the correct permissions on the file:
+$ sudo chmod 440 /etc/sudoers.d/jradmin
+
+Check syntax of all sudoers files:
+$ sudo visudo -c
+
+
+STEP 3: Create the sudoers rule for dba1
+----------------------------------------
+Task: dba1 can run ANY command as user 'mysql' without a password,
+in its own file /etc/sudoers.d/dba1.
+
+$ sudo visudo -f /etc/sudoers.d/dba1
+
+Type this line:
+
+dba1 ALL=(mysql) NOPASSWD: ALL
+
+Save and exit, then:
+$ sudo chmod 440 /etc/sudoers.d/dba1
+$ sudo visudo -c
+
+(Your lab book put "dba1 ALL=(root) NOPASSWD:LOCATE" into the main
+ sudoers file with visudo, allowing only updatedb as root. That
+ does not match the task. The line above is what the task asks.)
+
+
+STEP 4: Enable sudo logging to /var/log/sudo.log
+------------------------------------------------
+$ sudo visudo
+
+Add this line (for example under the other "Defaults" lines):
+
+Defaults logfile="/var/log/sudo.log"
+
+Save and exit (vi: Esc, then :wq).
+
+Or put it in its own drop-in file:
+$ sudo visudo -f /etc/sudoers.d/logging
+  Defaults logfile="/var/log/sudo.log"
+$ sudo chmod 440 /etc/sudoers.d/logging
+
+
+STEP 5: Validate and test
+-------------------------
+Make sure httpd exists, otherwise the restart test fails with
+"Unit httpd.service not found" (as in your lab book):
+
+$ sudo dnf install httpd -y
+$ sudo systemctl enable --now httpd
+
+Test jradmin, ALLOWED commands:
+$ su - jradmin
+$ sudo systemctl restart httpd
+$ sudo tail /var/log/httpd/error_log
+(these should work without errors)
+
+Test jradmin, an UNAUTHORISED command (should be denied):
+$ sudo reboot
+$ sudo cat /var/log/sudo.log
+(expected: "Sorry, user jradmin is not allowed to execute ...")
+
+Leave jradmin:
+$ exit
+
+Test dba1 (optional, needs a 'mysql' user on the system):
+$ sudo dnf install mariadb-server -y     (creates the mysql user)
+$ su - dba1
+$ sudo -u mysql whoami
+(should print: mysql, with no password prompt)
+$ exit
+
+
+STEP 6: Check the sudo log
+--------------------------
+$ sudo tail -f /var/log/sudo.log
+(Ctrl+C to stop)
+
+Or just view it once:
+$ sudo cat /var/log/sudo.log
+
+You should see lines like:
+  jradmin : TTY=pts/0 ; PWD=/home/jradmin ; USER=root ;
+            COMMAND=/usr/bin/systemctl restart httpd
+  jradmin : command not allowed ; TTY=pts/0 ; PWD=/home/jradmin ;
+            USER=root ; COMMAND=/bin/cat /var/log/sudo.log
+
+"command not allowed" proves the unauthorised attempt was logged.
+
+
+QUICK COMMAND SUMMARY
+---------------------
+sudo useradd jradmin ; sudo passwd jradmin        -> create user
+sudo useradd dba1 ; sudo passwd dba1              -> create user
+sudo visudo -f /etc/sudoers.d/jradmin             -> jradmin rules
+sudo chmod 440 /etc/sudoers.d/jradmin             -> permissions
+sudo visudo -f /etc/sudoers.d/dba1                -> dba1 rule
+sudo chmod 440 /etc/sudoers.d/dba1                -> permissions
+sudo visudo                                       -> add Defaults logfile
+sudo visudo -c                                    -> check syntax
+su - jradmin                                      -> switch user to test
+sudo systemctl restart httpd                      -> allowed test
+sudo reboot                                       -> denied test
+sudo tail -f /var/log/sudo.log                    -> verify log
